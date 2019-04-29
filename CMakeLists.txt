@@ -264,6 +264,7 @@ ENDIF()
 OPTION(PLUS_USE_MICRONTRACKER "Provide support for the Claron MicronTracker" OFF)
 OPTION(PLUS_USE_INTELREALSENSE "Provide support for Intel RealSense cameras" OFF)
 OPTION(PLUS_USE_ATRACSYS "Provide support for Atracsys optical trackers" OFF)
+OPTION(PLUS_USE_SPINNAKER_VIDEO "Provide support for Point Grey Spinnaker API compatible imaging devices" OFF)
 OPTION(PLUS_USE_OPTICAL_MARKER_TRACKER "Provide support of tracking of markers (2D barcodes) in image streams using ArUco and OpenCV." OFF)
 OPTION(PLUS_USE_BRACHY_TRACKER "Provide support for the Brachy Steppers" ${ENABLED_BY_DEFAULT_ON_WINDOWS32_ONLY})
 OPTION(PLUS_USE_USDIGITALENCODERS_TRACKER "Provide support for multiple USDigital encoders tracking device" ${ENABLED_BY_DEFAULT_ON_WINDOWS32_ONLY})
@@ -278,6 +279,13 @@ OPTION(PLUS_USE_OPENHAPTICS "Provide support of OpenHaptics devices" OFF)
 OPTION(PLUS_USE_WITMOTIONTRACKER "Provide support for the WitMotion IMU Trackers" OFF)
 IF(PLUS_USE_OvrvisionPro)
   OPTION(PLUS_TEST_OvrvisionPro "Enable testing of acquisition of stereo images from the OvrvisionPro" OFF)
+ENDIF()
+OPTION(PLUS_USE_LEAPMOTION "Provide support for the LeapMotion hand tracker" OFF)
+IF(PLUS_USE_LEAPMOTION)
+  FIND_PACKAGE(LeapSDK 4.0 REQUIRED
+    PATHS 
+    ../VASSTTools/LeapMotion/LeapSDK/lib/cmake/LeapSDK # Convenience for members of the VASST lab
+    )
 ENDIF()
 
 # ---------- Other devices ------------
@@ -412,46 +420,33 @@ IF(PLUSBUILD_USE_3DSlicer)
     MESSAGE(FATAL_ERROR "Unable to find Slicer at ${PLUSBUILD_SLICER_BIN_DIRECTORY} directory. Please verify configuration")
   ENDIF()
 
-  UNSET(QT_QMAKE_EXECUTABLE CACHE) # Slicer's Qt requirements and PLUS's are different
-  UNSET(QT_BINARY_DIR CACHE)
-  UNSET(OpenIGTLink_DIR CACHE) # Slicer's OpenIGTLink and PLUS's are different
   # For some reason, UNSET(VTK_DIR CACHE) does not work
-  SET(VTK_DIR "VTK_DIR-NOTFOUND" CACHE PATH "Location of pre-built VTK" FORCE) # VTK is built against Qt, and since Slicer is Qt4 and PLUS is Qt5...
+  SET(VTK_DIR "VTK_DIR-NOTFOUND" CACHE PATH "Location of pre-built VTK" FORCE) # VTK is built against Qt
 ENDIF()
 
 #-----------------------------------------------------------------------------
 # Qt - Let's check if a valid version of Qt is available
 #-----------------------------------------------------------------------------
 SET(ep_qt_args) # Arguments that will have to be passed to external projects that use Qt
+SET(PLUSBUILD_QT_COMPONENTS Core Widgets Designer OpenGL Sql Test Xml XmlPatterns Concurrent Network Gui)
+
 IF(PLUSBUILD_BUILD_PLUSAPP OR PLUSBUILD_BUILD_PLUSLIB_WIDGETS)
-  FIND_PACKAGE(Qt5 COMPONENTS Core Widgets Designer OpenGL Sql Test Xml Concurrent QUIET)
+  FIND_PACKAGE(Qt5 COMPONENTS ${PLUSBUILD_QT_COMPONENTS} QUIET)
 
   IF(NOT Qt5_FOUND)
     MESSAGE(FATAL_ERROR "This project requires Qt5 for building PlusApp but Qt was not found. Please specify Qt5_DIR or turn off PLUSBUILD_BUILD_PLUSAPP/PLUSBUILD_BUILD_PLUSLIB_WIDGETS options.")
   ENDIF()
 
-  SET(QT_VERSION_MAJOR ${Qt5Core_VERSION_MAJOR})
-  SET(QT_VERSION_MINOR ${Qt5Core_VERSION_MINOR})
-  SET(QT_VERSION_PATCH ${Qt5Core_VERSION_PATCH})
-  SET(QT_VERSION ${Qt5Core_VERSION})
-  GET_FILENAME_COMPONENT(QT_BINARY_DIR ${QT_MOC_EXECUTABLE} DIRECTORY)
-  SET(ep_qt_args
-    -DQt5_DIR:PATH=${Qt5_DIR}
-    -DQt5Core_DIR:PATH=${Qt5Core_DIR}
-    -DQt5Widgets_DIR:PATH=${Qt5Widgets_DIR}
-    -DQt5Designer_DIR:PATH=${Qt5Designer_DIR}
-    -DQt5OpenGL_DIR:PATH=${Qt5OpenGL_DIR}
-    -DQt5Sql_DIR:PATH=${Qt5Sql_DIR}
-    -DQt5Test_DIR:PATH=${Qt5Test_DIR}
-    -DQt5Concurrent_DIR:PATH=${Qt5Concurrent_DIR}
-    )
   # WebKitWidgets is deprecated in Qt 5.3 and removed in 5.6.0
-  FIND_PACKAGE(Qt5 COMPONENTS WebKitWidgets QUIET)
+  FIND_PACKAGE(Qt5 OPTIONAL_COMPONENTS WebKitWidgets QUIET)
   IF(Qt5WebKitWidgets_FOUND)
-    SET(ep_qt_args ${ep_qt_args}
-      -DQt5WebKitWidgets_DIR:PATH=${Qt5WebKitWidgets_DIR}
-      )
+    LIST(APPEND PLUSBUILD_QT_COMPONENTS WebKitWidgets)
   ENDIF()
+
+  SET(ep_qt_args -DQt5_DIR:PATH=${Qt5_DIR})
+  FOREACH(component ${PLUSBUILD_QT_COMPONENTS})
+    LIST(APPEND ep_qt_args -DQt5${Component}_DIR:PATH=${Qt5${Component}_DIR})
+  ENDFOREACH()
 ENDIF()
 
 INCLUDE(SuperBuild/External_VTK.cmake)
@@ -595,6 +590,13 @@ IF(PLUS_USE_ATRACSYS)
   FIND_PACKAGE(Atracsys)
   IF(NOT ATRACSYS_SDK_FOUND)
     MESSAGE(FATAL_ERROR "This project requires the Atracsys sTk Passive Tracking SDK to support the use of Atacsys optical trackers. One of the components is missing. Please verify configuration or turn off PLUS_USE_ATRACSYS")
+  ENDIF()
+ENDIF()
+
+IF(PLUS_USE_SPINNAKER_VIDEO)
+  FIND_PACKAGE(SpinnakerAPI)
+  IF(NOT SPINNAKER_API_FOUND)
+    MESSAGE(FATAL_ERROR "This project requires the Point Grey Spinnaker API to support the use of Point Grey imaging devices. One of the components is missing. Please verify configuration or turn off PLUS_USE_SPINNAKER_VIDEO")
   ENDIF()
 ENDIF()
 
@@ -768,6 +770,10 @@ ENDIF()
 
 IF(PLUS_USE_INFRARED_SEEK_CAM)
   LIST(APPEND PlusLib_DEPENDENCIES SeekCameraLib)
+ENDIF()
+
+IF(PLUS_USE_LEAPMOTION)
+  LIST(APPEND PlusLib_DEPENDENCIES LeapSDK::LeapC)
 ENDIF()
 
 SET(PlusApp_DEPENDENCIES PlusLib)

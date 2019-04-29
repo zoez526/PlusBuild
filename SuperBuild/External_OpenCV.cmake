@@ -1,4 +1,4 @@
-SET(PLUSBUILD_OpenCV_VERSION "3.3.1" CACHE STRING "Set OpenCV version (version: [major].[minor].[patch])")
+SET(PLUSBUILD_OpenCV_VERSION "3.4" CACHE STRING "Set OpenCV version (version: [major].[minor].[patch])")
 
 IF(OpenCV_DIR)
   FIND_PACKAGE(OpenCV ${PLUSBUILD_OpenCV_VERSION} REQUIRED NO_MODULE)
@@ -35,8 +35,11 @@ ELSE()
     ENDIF()
     
     SET(_generations "Fermi" "Kepler" "Maxwell")
-    IF(${CUDA_VERSION} VERSION_GREATER 7)
+    IF(${CUDA_VERSION} VERSION_GREATER_EQUAL 8.0.0)
       LIST(APPEND _generations "Pascal" "Volta")
+    ENDIF()
+    IF(${CUDA_VERSION} VERSION_GREATER_EQUAL 10.0.0)
+      LIST(APPEND _generations "Turing")
     ENDIF()
     IF(NOT CMAKE_CROSSCOMPILING)
       LIST(APPEND _generations "Auto")
@@ -67,11 +70,6 @@ ELSE()
 
   IF(NOT PLUSBUILD_BUILD_SHARED_LIBS)
     LIST(APPEND OpenCV_PLATFORM_SPECIFIC_ARGS -DBUILD_WITH_STATIC_CRT:BOOL=OFF)
-  ENDIF()
-
-  IF(PLUSBUILD_VTK_VERSION STREQUAL "v9.0.0")
-    # VTK v9.0.0 requires more recent opencv
-    SET(PLUSBUILD_OpenCV_VERSION 0d6518aaa05bc66b5724844938b6920627c5f13c CACHE STRING "Set OpenCV version (version: [major].[minor].[patch])" FORCE)
   ENDIF()
 
   # No OpenCV is specified, so download and build
